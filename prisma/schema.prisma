@@ -1,0 +1,322 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AuditStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum IssueSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum OpportunityLevel {
+  VERY_HIGH
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum OutreachStatus {
+  DRAFT
+  APPROVED
+  QUEUED
+  SENT
+  BOUNCED
+  REPLIED
+  UNSUBSCRIBED
+  FAILED
+}
+
+model User {
+  id              String      @id @default(uuid())
+  email           String      @unique
+  name            String?
+  passwordHash    String?     @map("password_hash")
+  emailVerifiedAt DateTime?   @map("email_verified_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  workspaces      Workspace[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id                  String               @id @default(uuid())
+  name                String
+  ownerUserId         String               @map("owner_user_id")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  owner               User                 @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  businesses          Business[]
+  campaigns           Campaign[]
+  suppressionContacts SuppressionContact[]
+
+  @@map("workspaces")
+}
+
+model Business {
+  id                   String                @id @default(uuid())
+  workspaceId          String                @map("workspace_id")
+  source               String
+  sourcePlaceId        String?               @map("source_place_id")
+  name                 String
+  category             String?
+  websiteUrl           String?               @map("website_url")
+  phone                String?
+  address              String?
+  city                 String?
+  country              String?
+  latitude             Float?
+  longitude            Float?
+  rating               Float?
+  reviewCount          Int?                  @map("review_count")
+  score                Int?                  @default(0)
+  opportunityLevel     OpportunityLevel?     @default(LOW) @map("opportunity_level")
+  discoveredAt         DateTime              @default(now()) @map("discovered_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  workspace            Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  websites             Website[]
+  opportunityAnalyses OpportunityAnalysis[]
+  campaignLeads        CampaignLead[]
+  outreachMessages     OutreachMessage[]
+
+  @@unique([workspaceId, source, sourcePlaceId], name: "workspace_source_place")
+  @@index([workspaceId])
+  @@index([websiteUrl])
+  @@index([score])
+  @@index([createdAt])
+  @@map("businesses")
+}
+
+model Website {
+  id            String   @id @default(uuid())
+  businessId    String   @map("business_id")
+  normalizedUrl String   @map("normalized_url")
+  finalUrl      String?  @map("final_url")
+  httpStatus    Int?     @map("http_status")
+  https         Boolean  @default(false)
+  reachable     Boolean  @default(false)
+  crawlStatus   String   @default("PENDING") @map("crawl_status")
+  lastCrawledAt DateTime? @map("last_crawled_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  audits        Audit[]
+
+  @@index([businessId])
+  @@index([normalizedUrl])
+  @@map("websites")
+}
+
+model Audit {
+  id                  String                @id @default(uuid())
+  websiteId           String                @map("website_id")
+  status              AuditStatus           @default(PENDING)
+  performanceScore    Int?                  @map("performance_score")
+  seoScore            Int?                  @map("seo_score")
+  accessibilityScore  Int?                  @map("accessibility_score")
+  mobileScore         Int?                  @map("mobile_score")
+  technicalScore      Int?                  @map("technical_score")
+  uxScore             Int?                  @map("ux_score")
+  overallScore        Int?                  @map("overall_score")
+  startedAt           DateTime?             @map("started_at")
+  completedAt         DateTime?             @map("completed_at")
+  errorMessage        String?               @map("error_message") @db.Text
+  createdAt           DateTime              @default(now()) @map("created_at")
+
+  website             Website               @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  issues              AuditIssue[]
+  evidence            AuditEvidence[]
+  opportunityAnalyses OpportunityAnalysis[]
+
+  @@index([websiteId])
+  @@index([status])
+  @@map("audits")
+}
+
+model AuditIssue {
+  id             String        @id @default(uuid())
+  auditId        String        @map("audit_id")
+  category       String
+  ruleCode       String        @map("rule_code")
+  severity       IssueSeverity @default(MEDIUM)
+  title          String
+  description    String?       @db.Text
+  evidence       String?       @db.Text
+  recommendation String?       @db.Text
+  source         String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  audit          Audit         @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([ruleCode])
+  @@map("audit_issues")
+}
+
+model AuditEvidence {
+  id        String   @id @default(uuid())
+  auditId   String   @map("audit_id")
+  type      String
+  key       String
+  value     String   @db.Text
+  source    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  audit     Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@map("audit_evidence")
+}
+
+model OpportunityAnalysis {
+  id               String              @id @default(uuid())
+  businessId       String              @map("business_id")
+  auditId          String?             @map("audit_id")
+  summary          String?             @db.Text
+  opportunityLevel OpportunityLevel    @default(LOW) @map("opportunity_level")
+  confidence       Float?              @default(0.0)
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  business         Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  audit            Audit?              @relation(fields: [auditId], references: [id], onDelete: SetNull)
+  opportunities    Opportunity[]
+
+  @@index([businessId])
+  @@index([auditId])
+  @@map("opportunity_analyses")
+}
+
+model Opportunity {
+  id                  String              @id @default(uuid())
+  analysisId          String              @map("analysis_id")
+  category            String
+  title               String
+  evidence            String?             @db.Text
+  businessImplication String?             @map("business_implication") @db.Text
+  recommendedService  String              @map("recommended_service")
+  priority            OpportunityLevel    @default(MEDIUM)
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  analysis            OpportunityAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@map("opportunities")
+}
+
+model Campaign {
+  id          String            @id @default(uuid())
+  workspaceId String            @map("workspace_id")
+  name        String
+  status      String            @default("ACTIVE")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads       CampaignLead[]
+  messages    OutreachMessage[]
+
+  @@index([workspaceId])
+  @@map("campaigns")
+}
+
+model CampaignLead {
+  id         String   @id @default(uuid())
+  campaignId String   @map("campaign_id")
+  businessId String   @map("business_id")
+  status     String   @default("PENDING")
+  addedAt    DateTime @default(now()) @map("added_at")
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, businessId])
+  @@index([campaignId])
+  @@index([businessId])
+  @@map("campaign_leads")
+}
+
+model OutreachMessage {
+  id                String         @id @default(uuid())
+  campaignId        String?        @map("campaign_id")
+  businessId        String         @map("business_id")
+  subject           String
+  body              String         @db.Text
+  status            OutreachStatus @default(DRAFT)
+  approvedAt        DateTime?      @map("approved_at")
+  sentAt            DateTime?      @map("sent_at")
+  providerMessageId String?        @map("provider_message_id")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  campaign          Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  business          Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  events            OutreachEvent[]
+
+  @@index([businessId])
+  @@index([campaignId])
+  @@index([status])
+  @@map("outreach_messages")
+}
+
+model OutreachEvent {
+  id                String          @id @default(uuid())
+  outreachMessageId String          @map("outreach_message_id")
+  eventType         String          @map("event_type")
+  eventTime         DateTime        @default(now()) @map("event_time")
+  metadataJson      String?         @map("metadata_json") @db.Text
+
+  message           OutreachMessage @relation(fields: [outreachMessageId], references: [id], onDelete: Cascade)
+
+  @@index([outreachMessageId])
+  @@map("outreach_events")
+}
+
+model SuppressionContact {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  email       String
+  reason      String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+  @@map("suppression_contacts")
+}
+
+model Job {
+  id           String    @id @default(uuid())
+  type         String
+  status       String    @default("PENDING")
+  payloadJson  String?   @map("payload_json") @db.Text
+  attempts     Int       @default(0)
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([type])
+  @@map("jobs")
+}
