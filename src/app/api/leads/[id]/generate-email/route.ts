@@ -13,6 +13,10 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const result = await generateOutreachEmail({
       businessId: id,
+      templateId: body.templateId,
+      selectedIssues: body.selectedIssues,
+      followUpStage: body.followUpStage ?? 0,
+      recipientEmail: body.recipientEmail,
       tone: body.tone,
       serviceFocus: body.serviceFocus,
       userNotes: body.userNotes,

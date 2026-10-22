@@ -352,6 +352,59 @@ export async function runWebsiteAudit(businessId: string): Promise<AuditEngineRe
       });
       uxScore -= 30;
     }
+
+    // --- AI Automation & Chatbot Checks ---
+    if (!crawl.hasChatbot) {
+      issues.push({
+        category: "AI Automation",
+        ruleCode: "AI_CHATBOT_MISSING",
+        severity: "HIGH",
+        title: "No 24/7 AI Lead Capture Chatbot",
+        description: "The website does not have an automated AI chat assistant to answer client inquiries or capture leads after hours.",
+        evidence: "No interactive chat widget or script detected",
+        recommendation: "Deploy a custom 24/7 AI chatbot trained on business FAQs to capture contact details and convert visitors into booked appointments.",
+        source: "HTML DOM",
+      });
+      uxScore -= 15;
+    } else {
+      evidenceRecords.push({
+        type: "AI & Tech",
+        key: "ai_chatbot",
+        value: `Detected (${crawl.chatbotDetails || "Active"})`,
+        source: "HTML DOM",
+      });
+    }
+
+    // --- Booking System Checks ---
+    if (!crawl.hasBookingSystem) {
+      issues.push({
+        category: "Conversion",
+        ruleCode: "BOOKING_SYSTEM_MISSING",
+        severity: "HIGH",
+        title: "No Automated Booking / Scheduling System",
+        description: "Visitors cannot self-schedule appointments or consultations online, creating friction and leading to dropped bookings.",
+        evidence: "No direct scheduling widget (Calendly, Acuity, Cal.com) found",
+        recommendation: "Implement an automated self-scheduling calendar widget to let prospective customers book consultations 24/7 directly.",
+        source: "HTML DOM",
+      });
+      uxScore -= 20;
+    } else {
+      evidenceRecords.push({
+        type: "AI & Tech",
+        key: "booking_system",
+        value: `Detected (${crawl.bookingDetails || "Active"})`,
+        source: "HTML DOM",
+      });
+    }
+
+    if (crawl.hasVoiceAgent) {
+      evidenceRecords.push({
+        type: "AI & Tech",
+        key: "voice_agent",
+        value: `Detected (${crawl.voiceAgentDetails || "Active"})`,
+        source: "HTML DOM",
+      });
+    }
   }
 
   // Calculate Overall Weighted Score (0-100)
@@ -422,12 +475,30 @@ export async function runWebsiteAudit(businessId: string): Promise<AuditEngineRe
   const opportunityLevel: OpportunityLevelType =
     cappedScore >= 70 ? "VERY_HIGH" : cappedScore >= 50 ? "HIGH" : cappedScore >= 30 ? "MEDIUM" : "LOW";
 
-  // Update Business Record
+  // Update Business Record with enriched details
+  const emailDiscovered = crawl.extractedEmails && crawl.extractedEmails.length > 0 ? crawl.extractedEmails[0] : undefined;
+  const emailsJson = crawl.extractedEmails && crawl.extractedEmails.length > 0 ? JSON.stringify(crawl.extractedEmails) : undefined;
+  const phoneDiscovered = crawl.extractedPhones && crawl.extractedPhones.length > 0 ? crawl.extractedPhones[0] : undefined;
+  const phonesJson = crawl.extractedPhones && crawl.extractedPhones.length > 0 ? JSON.stringify(crawl.extractedPhones) : undefined;
+  const socialsJson = crawl.extractedSocials && crawl.extractedSocials.length > 0 ? JSON.stringify(crawl.extractedSocials) : undefined;
+
   await prisma.business.update({
     where: { id: business.id },
     data: {
       score: cappedScore,
       opportunityLevel,
+      ...(business.phone ? {} : (phoneDiscovered ? { phone: phoneDiscovered } : {})),
+      ...(phonesJson ? { phoneNumbers: phonesJson } : {}),
+      ...(business.email ? {} : (emailDiscovered ? { email: emailDiscovered } : {})),
+      ...(emailsJson ? { emails: emailsJson } : {}),
+      ...(crawl.whatsappPhone ? { whatsappPhone: crawl.whatsappPhone } : {}),
+      ...(socialsJson ? { socialLinks: socialsJson } : {}),
+      hasChatbot: crawl.hasChatbot ?? false,
+      chatbotDetails: crawl.chatbotDetails,
+      hasBookingSystem: crawl.hasBookingSystem ?? false,
+      bookingDetails: crawl.bookingDetails,
+      hasVoiceAgent: crawl.hasVoiceAgent ?? false,
+      voiceAgentDetails: crawl.voiceAgentDetails,
     },
   });
 

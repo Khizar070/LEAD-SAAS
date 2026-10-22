@@ -7,6 +7,7 @@ const discoverSchema = z.object({
   niche: z.string().min(2, "Niche must be at least 2 characters"),
   location: z.string().min(2, "Location must be at least 2 characters"),
   maxResults: z.number().int().min(1).max(50).optional().default(10),
+  sortOrder: z.enum(["bottom-to-top", "top-to-bottom", "lowest-reviews"]).optional().default("bottom-to-top"),
 });
 
 export async function POST(request: Request) {
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
       niche: validated.niche,
       location: validated.location,
       maxResults: validated.maxResults,
+      sortOrder: validated.sortOrder,
     });
 
     return NextResponse.json({

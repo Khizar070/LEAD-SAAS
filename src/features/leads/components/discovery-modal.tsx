@@ -25,6 +25,7 @@ export function DiscoveryModal({ open, onOpenChange }: DiscoveryModalProps) {
   const [niche, setNiche] = useState("");
   const [location, setLocation] = useState("");
   const [maxResults, setMaxResults] = useState("10");
+  const [sortOrder, setSortOrder] = useState<"bottom-to-top" | "top-to-bottom" | "lowest-reviews">("bottom-to-top");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,6 +44,7 @@ export function DiscoveryModal({ open, onOpenChange }: DiscoveryModalProps) {
           niche: niche.trim(),
           location: location.trim(),
           maxResults: parseInt(maxResults, 10),
+          sortOrder,
         }),
       });
 
@@ -114,6 +116,28 @@ export function DiscoveryModal({ open, onOpenChange }: DiscoveryModalProps) {
               disabled={loading}
               required
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-300 flex items-center justify-between">
+              <span>Discovery Order & Priority</span>
+              <span className="text-[10px] text-indigo-400 font-normal">Small businesses easier to convert</span>
+            </label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "bottom-to-top" | "top-to-bottom" | "lowest-reviews")}
+              className="w-full h-9 rounded-md bg-slate-900 border border-slate-800 px-3 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              disabled={loading}
+            >
+              <option value="bottom-to-top">🎯 Bottom-to-Top (Small Businesses First - Recommended)</option>
+              <option value="lowest-reviews">⭐ Lowest Reviews First (Need digital growth)</option>
+              <option value="top-to-bottom">🏢 Top-to-Bottom (High-Ranked / Popular First)</option>
+            </select>
+            <p className="text-[11px] text-slate-500">
+              {sortOrder === "bottom-to-top" && "Picks lower-ranking local businesses that need immediate web & AI assistance."}
+              {sortOrder === "lowest-reviews" && "Prioritizes businesses with low review counts seeking growth & reputation."}
+              {sortOrder === "top-to-bottom" && "Fetches top-ranking establishments from search results."}
+            </p>
           </div>
 
           <div className="space-y-1.5">

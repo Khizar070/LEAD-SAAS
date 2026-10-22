@@ -80,12 +80,12 @@ export default async function LeadsPage() {
             <TableHeader className="bg-slate-900/80">
               <TableRow className="border-slate-800">
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Business</TableHead>
-                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Contact / Phone</TableHead>
+                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Contact & Channels</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Location</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Website</TableHead>
+                <TableHead className="text-slate-400 text-xs font-semibold uppercase">AI & Tech</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Score</TableHead>
-                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Opportunity</TableHead>
-                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Service Match</TableHead>
+                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Outreach Sent</TableHead>
                 <TableHead className="text-right text-slate-400 text-xs font-semibold uppercase">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -100,17 +100,45 @@ export default async function LeadsPage() {
                       <Link href={`/leads/${lead.id}`} className="hover:text-indigo-400 transition-colors font-semibold">
                         {lead.name}
                       </Link>
-                      <div className="text-xs text-slate-400">{lead.category || "N/A"}</div>
+                      <div className="text-xs text-slate-400">{lead.category || "General"}</div>
                     </TableCell>
 
-                    <TableCell className="text-slate-300 text-xs">
-                      {lead.phone ? (
-                        <a href={`tel:${lead.phone}`} className="flex items-center gap-1.5 text-slate-300 hover:text-indigo-400">
-                          <Phone className="h-3 w-3 text-slate-500" />
-                          <span>{lead.phone}</span>
-                        </a>
-                      ) : (
-                        <span className="text-slate-500 text-xs">No Phone</span>
+                    <TableCell className="text-slate-300 text-xs space-y-1">
+                      {/* WhatsApp Direct Badge */}
+                      {lead.whatsappPhone && (
+                        <div>
+                          <a
+                            href={`https://wa.me/${lead.whatsappPhone.replace(/[^\d]/g, "")}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 hover:bg-emerald-500/20"
+                          >
+                            <span>WhatsApp: {lead.whatsappPhone}</span>
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Primary Phone */}
+                      {lead.phone && (
+                        <div>
+                          <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-slate-300 hover:text-indigo-400">
+                            <Phone className="h-3 w-3 text-slate-500" />
+                            <span>{lead.phone}</span>
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Extracted Email */}
+                      {lead.email && (
+                        <div>
+                          <a href={`mailto:${lead.email}`} className="inline-flex items-center gap-1 text-sky-400 hover:underline text-[11px] truncate max-w-[150px]">
+                            <span>{lead.email}</span>
+                          </a>
+                        </div>
+                      )}
+
+                      {!lead.whatsappPhone && !lead.phone && !lead.email && (
+                        <span className="text-slate-500 text-xs">No channels yet</span>
                       )}
                     </TableCell>
 
@@ -129,7 +157,7 @@ export default async function LeadsPage() {
                           rel="noopener noreferrer"
                           className="text-indigo-400 hover:underline inline-flex items-center gap-1"
                         >
-                          <span className="truncate max-w-[140px]">{lead.websiteUrl.replace(/^https?:\/\//, '')}</span>
+                          <span className="truncate max-w-[130px]">{lead.websiteUrl.replace(/^https?:\/\//, '')}</span>
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       ) : (
@@ -139,30 +167,48 @@ export default async function LeadsPage() {
                       )}
                     </TableCell>
 
+                    {/* AI & Tech Capabilities */}
+                    <TableCell className="text-xs">
+                      <div className="flex items-center gap-1.5">
+                        {lead.hasChatbot ? (
+                          <span title={`AI Chatbot Active: ${lead.chatbotDetails || 'Yes'}`} className="p-1 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-medium">
+                            Bot ✓
+                          </span>
+                        ) : (
+                          <span title="No AI Chatbot detected (High Pitch Value)" className="p-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]">
+                            No Bot
+                          </span>
+                        )}
+
+                        {lead.hasBookingSystem ? (
+                          <span title={`Booking System: ${lead.bookingDetails || 'Yes'}`} className="p-1 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 text-[10px] font-medium">
+                            Book ✓
+                          </span>
+                        ) : (
+                          <span title="No Online Booking detected" className="p-1 rounded bg-slate-800 text-slate-400 text-[10px]">
+                            No Book
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+
                     <TableCell>
                       <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-200 font-semibold">
                         {lead.score ?? 0} / 100
                       </Badge>
                     </TableCell>
 
+                    {/* Outreach / Follow-Up Stage */}
                     <TableCell>
-                      {lead.opportunityLevel === "VERY_HIGH" || lead.opportunityLevel === "HIGH" ? (
-                        <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                          High Opportunity
-                        </Badge>
-                      ) : lead.opportunityLevel === "MEDIUM" ? (
-                        <Badge className="bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                          Medium Opportunity
+                      {lead.emailCount > 0 ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px]">
+                          {lead.emailCount === 1 ? "1 Email Sent" : `${lead.emailCount} Emails (Follow-Up)`}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-slate-400 border-slate-800">
-                          Low / Unaudited
+                        <Badge variant="outline" className="text-slate-500 border-slate-800 text-[11px]">
+                          0 Sent (New)
                         </Badge>
                       )}
-                    </TableCell>
-
-                    <TableCell className="text-sm text-slate-300">
-                      {topOpportunity?.recommendedService || "Pending Audit"}
                     </TableCell>
 
                     <TableCell className="text-right">

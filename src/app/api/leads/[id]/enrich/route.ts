@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { GooglePlacesProvider } from "@/server/integrations/google-places";
+import { crawlWebsite, CrawlResult } from "@/server/services/crawler-service";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
@@ -55,11 +56,34 @@ export async function POST(request: Request, { params }: RouteParams) {
       cleanWebsite = `https://${cleanWebsite}`;
     }
 
+    // 3. Deep website crawl to extract WhatsApp, emails, socials, chatbot, and booking tools
+    let crawlData: CrawlResult | null = null;
+    if (cleanWebsite) {
+      try {
+        crawlData = await crawlWebsite(cleanWebsite);
+      } catch {
+        // ignore crawl error
+      }
+    }
+
+    const emailDiscovered = crawlData?.extractedEmails && crawlData.extractedEmails.length > 0 ? crawlData.extractedEmails[0] : undefined;
+    const emailsJson = crawlData?.extractedEmails && crawlData.extractedEmails.length > 0 ? JSON.stringify(crawlData.extractedEmails) : undefined;
+    const phoneDiscovered = crawlData?.extractedPhones && crawlData.extractedPhones.length > 0 ? crawlData.extractedPhones[0] : discoveredPhone;
+    const phonesJson = crawlData?.extractedPhones && crawlData.extractedPhones.length > 0 ? JSON.stringify(crawlData.extractedPhones) : undefined;
+    const socialsJson = crawlData?.extractedSocials && crawlData.extractedSocials.length > 0 ? JSON.stringify(crawlData.extractedSocials) : undefined;
+
     const updated = await prisma.business.update({
       where: { id },
       data: {
         websiteUrl: cleanWebsite || lead.websiteUrl,
-        phone: discoveredPhone || lead.phone,
+        phone: phoneDiscovered || lead.phone,
+        ...(phonesJson ? { phoneNumbers: phonesJson } : {}),
+        ...(emailDiscovered ? { email: emailDiscovered } : {}),
+        ...(emailsJson ? { emails: emailsJson } : {}),
+        ...(crawlData?.whatsappPhone ? { whatsappPhone: crawlData.whatsappPhone } : {}),
+        ...(socialsJson ? { socialLinks: socialsJson } : {}),
+        ...(crawlData?.hasChatbot !== undefined ? { hasChatbot: crawlData.hasChatbot, chatbotDetails: crawlData.chatbotDetails } : {}),
+        ...(crawlData?.hasBookingSystem !== undefined ? { hasBookingSystem: crawlData.hasBookingSystem, bookingDetails: crawlData.bookingDetails } : {}),
       },
     });
 

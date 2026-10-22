@@ -16,23 +16,27 @@ export interface DiscoveredLeadInput {
   reviewCount?: number;
 }
 
+export type DiscoverSortOrder = "bottom-to-top" | "top-to-bottom" | "lowest-reviews";
+
 export interface DiscoverParams {
   niche: string;
   location: string;
   maxResults?: number;
+  sortOrder?: DiscoverSortOrder;
 }
 
 export class GooglePlacesProvider {
   async discoverLeads(params: DiscoverParams): Promise<DiscoveredLeadInput[]> {
-    const { niche, location, maxResults = 10 } = params;
+    const { niche, location, maxResults = 10, sortOrder = "bottom-to-top" } = params;
     const apiKey = env.GOOGLE_MAPS_API_KEY;
 
     if (!apiKey) {
       logger.info("GOOGLE_MAPS_API_KEY is not configured. Returning development mock leads.", {
         niche,
         location,
+        sortOrder,
       });
-      return this.getMockLeads(niche, location, maxResults);
+      return this.getMockLeads(niche, location, maxResults, sortOrder);
     }
 
     try {
@@ -51,12 +55,26 @@ export class GooglePlacesProvider {
         throw new Error(`Google Places API error: ${data.status} - ${data.error_message || ""}`);
       }
 
-      const rawResults = (data.results || []).slice(0, maxResults);
+      let rawResults = [...((data.results || []) as Array<Record<string, unknown>>)];
+
+      // Apply User's discovery sorting preference:
+      if (sortOrder === "bottom-to-top") {
+        // Reverse so lower-ranking / small local businesses appear first
+        rawResults = rawResults.reverse();
+      } else if (sortOrder === "lowest-reviews") {
+        rawResults = rawResults.sort((a, b) => {
+          const countA = typeof a.user_ratings_total === "number" ? a.user_ratings_total : 0;
+          const countB = typeof b.user_ratings_total === "number" ? b.user_ratings_total : 0;
+          return countA - countB;
+        });
+      }
+
+      const targetedResults = rawResults.slice(0, maxResults);
 
       // TextSearch API does not include website or phone details by default.
       // We must fetch Place Details for each place to get website and phone numbers.
       const enrichedLeads = await Promise.all(
-        rawResults.map(async (place: Record<string, unknown>) => {
+        targetedResults.map(async (place: Record<string, unknown>) => {
           const placeId = (place.place_id as string) || "";
           const geometry = place.geometry as { location?: { lat?: number; lng?: number } } | undefined;
           const basicName = (place.name as string) || "Unknown Business";
@@ -187,8 +205,13 @@ export class GooglePlacesProvider {
     return cleaned;
   }
 
-  private getMockLeads(niche: string, location: string, maxResults: number): DiscoveredLeadInput[] {
-    const mockData: DiscoveredLeadInput[] = [
+  private getMockLeads(
+    niche: string,
+    location: string,
+    maxResults: number,
+    sortOrder: DiscoverSortOrder = "bottom-to-top"
+  ): DiscoveredLeadInput[] {
+    let mockData: DiscoveredLeadInput[] = [
       {
         sourcePlaceId: `mock_place_1_${location.toLowerCase().replace(/\s+/g, "_")}`,
         name: `Apex ${niche} & Digital Clinic`,
@@ -238,6 +261,12 @@ export class GooglePlacesProvider {
         reviewCount: 31,
       },
     ];
+
+    if (sortOrder === "bottom-to-top") {
+      mockData = mockData.reverse();
+    } else if (sortOrder === "lowest-reviews") {
+      mockData = mockData.sort((a, b) => (a.reviewCount || 0) - (b.reviewCount || 0));
+    }
 
     return mockData.slice(0, maxResults);
   }

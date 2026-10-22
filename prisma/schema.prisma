@@ -87,6 +87,19 @@ model Business {
   reviewCount          Int?                  @map("review_count")
   score                Int?                  @default(0)
   opportunityLevel     OpportunityLevel?     @default(LOW) @map("opportunity_level")
+  email                String?
+  emails               String?               @db.Text
+  whatsappPhone        String?               @map("whatsapp_phone")
+  phoneNumbers         String?               @map("phone_numbers") @db.Text
+  socialLinks          String?               @map("social_links") @db.Text
+  hasChatbot           Boolean?              @default(false) @map("has_chatbot")
+  chatbotDetails       String?               @map("chatbot_details")
+  hasBookingSystem     Boolean?              @default(false) @map("has_booking_system")
+  bookingDetails       String?               @map("booking_details")
+  hasVoiceAgent        Boolean?              @default(false) @map("has_voice_agent")
+  voiceAgentDetails    String?               @map("voice_agent_details")
+  emailCount           Int                   @default(0) @map("email_count")
+  lastContactedAt      DateTime?             @map("last_contacted_at")
   discoveredAt         DateTime              @default(now()) @map("discovered_at")
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
@@ -101,6 +114,7 @@ model Business {
   @@index([workspaceId])
   @@index([websiteUrl])
   @@index([score])
+  @@index([emailCount])
   @@index([createdAt])
   @@map("businesses")
 }
@@ -262,6 +276,10 @@ model OutreachMessage {
   subject           String
   body              String         @db.Text
   status            OutreachStatus @default(DRAFT)
+  templateId        String?        @map("template_id")
+  followUpStage     Int            @default(0) @map("follow_up_stage")
+  selectedIssuesJson String?       @map("selected_issues_json") @db.Text
+  recipientEmail    String?        @map("recipient_email")
   approvedAt        DateTime?      @map("approved_at")
   sentAt            DateTime?      @map("sent_at")
   providerMessageId String?        @map("provider_message_id")

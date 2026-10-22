@@ -15,6 +15,14 @@ import {
   Mail,
   AlertTriangle,
   Zap,
+  MessageSquare,
+  Bot,
+  CalendarCheck,
+  CalendarX,
+  Share2,
+  CheckCircle2,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { AIAnalysisButton } from "@/features/ai/components/ai-analysis-button";
@@ -69,6 +77,38 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
   type OpportunityItem = NonNullable<typeof analysis>["opportunities"][number];
   type AuditEvidenceItem = NonNullable<typeof audit>["evidence"][number];
 
+  // Parse JSON enriched attributes
+  let parsedSocials: Array<{ type: string; url: string }> = [];
+  if (lead.socialLinks) {
+    try {
+      parsedSocials = JSON.parse(lead.socialLinks);
+    } catch {
+      parsedSocials = [];
+    }
+  }
+
+  let parsedPhones: string[] = [];
+  if (lead.phoneNumbers) {
+    try {
+      parsedPhones = JSON.parse(lead.phoneNumbers);
+    } catch {
+      parsedPhones = lead.phone ? [lead.phone] : [];
+    }
+  } else if (lead.phone) {
+    parsedPhones = [lead.phone];
+  }
+
+  let parsedEmails: string[] = [];
+  if (lead.emails) {
+    try {
+      parsedEmails = JSON.parse(lead.emails);
+    } catch {
+      parsedEmails = lead.email ? [lead.email] : [];
+    }
+  } else if (lead.email) {
+    parsedEmails = [lead.email];
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Navigation & Header Controls */}
@@ -76,7 +116,7 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
 
       {/* Business Overview Header Card */}
       <Card className="bg-slate-900/70 border-slate-800">
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
@@ -84,6 +124,16 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
                 <Badge variant="outline" className="border-slate-700 bg-slate-950 text-indigo-400 font-semibold">
                   Score: {lead.score ?? 0} / 100
                 </Badge>
+                {lead.emailCount > 0 ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    <span>Contacted ({lead.emailCount} emails)</span>
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-slate-400 border-slate-800 text-xs">
+                    Not Contacted Yet
+                  </Badge>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
@@ -96,17 +146,6 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5 text-slate-500" />
                     {lead.address}
-                  </span>
-                )}
-                {lead.phone ? (
-                  <a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-slate-300 hover:text-indigo-400">
-                    <Phone className="h-3.5 w-3.5 text-indigo-400" />
-                    <span className="font-semibold">{lead.phone}</span>
-                  </a>
-                ) : (
-                  <span className="text-slate-500 text-xs flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5" />
-                    No Phone Found
                   </span>
                 )}
                 {lead.rating && (
@@ -135,6 +174,132 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
                   No Website Found
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Contact Details & Channels Strip */}
+          <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* WhatsApp direct action button */}
+              {lead.whatsappPhone && (
+                <a
+                  href={`https://wa.me/${lead.whatsappPhone.replace(/[^\d]/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-semibold transition-all shadow-sm shadow-emerald-500/10"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>WhatsApp: {lead.whatsappPhone}</span>
+                  <ExternalLink className="h-3 w-3 ml-0.5 opacity-70" />
+                </a>
+              )}
+
+              {/* Primary Phone */}
+              {parsedPhones.map((ph, idx) => (
+                <a
+                  key={ph + idx}
+                  href={`tel:${ph}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-indigo-300 rounded-lg text-xs font-medium transition-colors"
+                >
+                  <Phone className="h-3.5 w-3.5 text-indigo-400" />
+                  <span>{ph}</span>
+                </a>
+              ))}
+
+              {/* Extracted Emails */}
+              {parsedEmails.map((em, idx) => (
+                <a
+                  key={em + idx}
+                  href={`mailto:${em}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-950/30 border border-sky-800/40 hover:border-sky-700 text-sky-300 rounded-lg text-xs font-medium transition-colors"
+                >
+                  <Mail className="h-3.5 w-3.5 text-sky-400" />
+                  <span>{em}</span>
+                </a>
+              ))}
+
+              {parsedPhones.length === 0 && !lead.whatsappPhone && parsedEmails.length === 0 && (
+                <span className="text-xs text-slate-500">No contact channels extracted yet. Run website audit to discover emails & numbers.</span>
+              )}
+            </div>
+
+            {/* Social Media Links */}
+            {parsedSocials.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <Share2 className="h-3 w-3" />
+                  <span>Socials:</span>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {parsedSocials.map((soc) => (
+                    <a
+                      key={soc.type}
+                      href={soc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-md text-slate-300 hover:text-white capitalize text-[11px] font-medium transition-colors inline-flex items-center gap-1"
+                    >
+                      <span>{soc.type}</span>
+                      <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI & Digital Maturity Capability Banner */}
+          <div className="pt-3 border-t border-slate-800/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {/* AI Chatbot Status */}
+            <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="text-[11px] text-slate-400 font-semibold uppercase flex items-center gap-1.5">
+                  <Bot className="h-3.5 w-3.5 text-indigo-400" />
+                  <span>AI Chatbot / Support</span>
+                </div>
+                <div className="text-xs font-medium text-slate-200">
+                  {lead.hasChatbot ? (lead.chatbotDetails || "Detected") : "Missing 24/7 AI Bot"}
+                </div>
+              </div>
+              {lead.hasChatbot ? (
+                <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px]">Active</Badge>
+              ) : (
+                <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]">High Pitch Value</Badge>
+              )}
+            </div>
+
+            {/* Booking System Status */}
+            <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="text-[11px] text-slate-400 font-semibold uppercase flex items-center gap-1.5">
+                  <CalendarCheck className="h-3.5 w-3.5 text-sky-400" />
+                  <span>Online Booking System</span>
+                </div>
+                <div className="text-xs font-medium text-slate-200">
+                  {lead.hasBookingSystem ? (lead.bookingDetails || "Detected") : "No Online Booking Tool"}
+                </div>
+              </div>
+              {lead.hasBookingSystem ? (
+                <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px]">Active</Badge>
+              ) : (
+                <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]">High Pitch Value</Badge>
+              )}
+            </div>
+
+            {/* Outreach History Status */}
+            <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="text-[11px] text-slate-400 font-semibold uppercase flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Outreach Sent History</span>
+                </div>
+                <div className="text-xs font-medium text-slate-200">
+                  {lead.lastContactedAt ? `Last: ${new Date(lead.lastContactedAt).toLocaleDateString()}` : "Never contacted"}
+                </div>
+              </div>
+              <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-300 text-[10px]">
+                {lead.emailCount} Dispatched
+              </Badge>
             </div>
           </div>
         </CardContent>
@@ -275,7 +440,20 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
 
         {/* Tab 3: Outreach Email */}
         <TabsContent value="outreach" className="space-y-6">
-          <OutreachEditor businessId={lead.id} existingDraft={emailDraft} />
+          <OutreachEditor
+            businessId={lead.id}
+            existingDraft={emailDraft}
+            availableIssues={
+              audit?.issues.map((i) => ({
+                id: i.id,
+                ruleCode: i.ruleCode,
+                title: i.title,
+                severity: i.severity,
+              })) || []
+            }
+            businessEmail={lead.email}
+            emailCount={lead.emailCount ?? 0}
+          />
         </TabsContent>
       </Tabs>
     </div>

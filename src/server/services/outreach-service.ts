@@ -44,6 +44,10 @@ export async function sendOutreachMessage(messageId: string, customRecipientEmai
   const business = message.business;
   const targetEmail = (customRecipientEmail && customRecipientEmail.trim().length > 0)
     ? customRecipientEmail.trim()
+    : (message.recipientEmail && message.recipientEmail.trim().length > 0)
+    ? message.recipientEmail.trim()
+    : (business.email && business.email.trim().length > 0)
+    ? business.email.trim()
     : (business.phone ? `${business.name.toLowerCase().replace(/\s+/g, "")}@example.com` : "contact@example.com");
 
   // 1. Suppression List Check
@@ -84,11 +88,22 @@ export async function sendOutreachMessage(messageId: string, customRecipientEmai
     data: {
       status: "SENT",
       sentAt: new Date(),
+      recipientEmail: targetEmail,
       providerMessageId: sendResult.providerMessageId,
     },
   });
 
-  // 4. Record Event Log
+  // 4. Update Business emailCount & lastContactedAt
+  await prisma.business.update({
+    where: { id: business.id },
+    data: {
+      emailCount: { increment: 1 },
+      lastContactedAt: new Date(),
+      email: targetEmail.includes("@example.com") ? business.email : (business.email || targetEmail),
+    },
+  });
+
+  // 5. Record Event Log
   await prisma.outreachEvent.create({
     data: {
       outreachMessageId: messageId,
@@ -102,7 +117,9 @@ export async function sendOutreachMessage(messageId: string, customRecipientEmai
 
   logger.info("Outreach message sent successfully", {
     messageId,
+    businessId: business.id,
     providerMessageId: sendResult.providerMessageId,
+    recipient: targetEmail,
   });
 
   return sentMessage;

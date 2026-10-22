@@ -121,7 +121,8 @@ export default async function CampaignsPage() {
             <TableHeader className="bg-slate-900/80">
               <TableRow className="border-slate-800">
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Lead Business</TableHead>
-                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Subject Line</TableHead>
+                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Recipient</TableHead>
+                <TableHead className="text-slate-400 text-xs font-semibold uppercase">Subject & Follow-Up Stage</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Status</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Sent At</TableHead>
                 <TableHead className="text-right text-slate-400 text-xs font-semibold uppercase">Action</TableHead>
@@ -133,11 +134,35 @@ export default async function CampaignsPage() {
                   <TableRow key={message.id} className="border-slate-800/60 hover:bg-slate-900/80 transition-colors">
                     <TableCell className="font-medium text-slate-100">
                       <div>{message.business.name}</div>
-                      <div className="text-xs text-slate-400">{message.business.category || "N/A"}</div>
+                      <div className="text-xs text-slate-400">{message.business.category || "General"}</div>
                     </TableCell>
 
-                    <TableCell className="text-slate-200 text-sm max-w-xs truncate font-medium">
-                      {message.subject}
+                    <TableCell className="text-xs text-slate-300">
+                      {message.recipientEmail || message.business.email ? (
+                        <span className="text-sky-300 font-medium">{message.recipientEmail || message.business.email}</span>
+                      ) : (
+                        <span className="text-slate-500">Contact Email</span>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-slate-200 text-sm max-w-xs font-medium space-y-1">
+                      <div className="truncate">{message.subject}</div>
+                      <div className="flex items-center gap-1.5">
+                        {message.followUpStage && message.followUpStage > 0 ? (
+                          <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]">
+                            Follow-Up #{message.followUpStage}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-slate-400 border-slate-800 text-[10px]">
+                            Initial Outreach
+                          </Badge>
+                        )}
+                        {message.templateId && (
+                          <span className="text-[10px] text-indigo-400 bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
+                            {message.templateId}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
 
                     <TableCell>
