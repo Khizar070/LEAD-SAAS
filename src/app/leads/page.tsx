@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, ExternalLink, Filter, Phone, MapPin } from "lucide-react";
+import { Search, ExternalLink, Filter, Phone, MapPin, MessageSquare, Mail } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/async-state";
 import { LeadsHeader } from "@/features/leads/components/leads-header";
@@ -80,6 +80,7 @@ export default async function LeadsPage() {
             <TableHeader className="bg-slate-900/80">
               <TableRow className="border-slate-800">
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Business</TableHead>
+                <TableHead className="text-slate-400 text-xs font-semibold uppercase">WhatsApp</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Contact & Channels</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Location</TableHead>
                 <TableHead className="text-slate-400 text-xs font-semibold uppercase">Website</TableHead>
@@ -94,6 +95,37 @@ export default async function LeadsPage() {
                 const latestAnalysis = lead.opportunityAnalyses[0];
                 const topOpportunity = latestAnalysis?.opportunities[0];
 
+                // Parse WhatsApp numbers
+                const whatsappList: string[] = lead.whatsappPhone
+                  ? lead.whatsappPhone.split(",").map((s) => s.trim()).filter(Boolean)
+                  : [];
+
+                // Parse All Phone Numbers (Google Places + Crawled from website)
+                let allPhones: string[] = [];
+                if (lead.phoneNumbers) {
+                  try {
+                    const parsed = JSON.parse(lead.phoneNumbers);
+                    if (Array.isArray(parsed)) allPhones = parsed;
+                  } catch {
+                    allPhones = lead.phone ? [lead.phone] : [];
+                  }
+                } else if (lead.phone) {
+                  allPhones = [lead.phone];
+                }
+
+                // Parse All Emails
+                let allEmails: string[] = [];
+                if (lead.emails) {
+                  try {
+                    const parsed = JSON.parse(lead.emails);
+                    if (Array.isArray(parsed)) allEmails = parsed;
+                  } catch {
+                    allEmails = lead.email ? [lead.email] : [];
+                  }
+                } else if (lead.email) {
+                  allEmails = [lead.email];
+                }
+
                 return (
                   <TableRow key={lead.id} className="border-slate-800/60 hover:bg-slate-900/80 transition-colors">
                     <TableCell className="font-medium text-slate-100">
@@ -103,41 +135,78 @@ export default async function LeadsPage() {
                       <div className="text-xs text-slate-400">{lead.category || "General"}</div>
                     </TableCell>
 
+                    {/* Dedicated WhatsApp Column */}
+                    <TableCell className="text-xs">
+                      {whatsappList.length > 0 ? (
+                        <div className="flex flex-col gap-1.5 items-start">
+                          {whatsappList.map((waNum, idx) => {
+                            const waCleanDigits = waNum.replace(/[^\d]/g, "");
+                            return (
+                              <a
+                                key={waNum + idx}
+                                href={`https://wa.me/${waCleanDigits}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Open WhatsApp Chat directly"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all shadow-xs group"
+                              >
+                                <MessageSquare className="h-3 w-3 text-emerald-400 group-hover:scale-110 transition-transform" />
+                                <span>{waNum}</span>
+                                <ExternalLink className="h-2.5 w-2.5 opacity-60 ml-0.5" />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800">
+                          Not Detected
+                        </span>
+                      )}
+                    </TableCell>
+
+                    {/* Contact & All Discovered Channels */}
                     <TableCell className="text-slate-300 text-xs space-y-1">
-                      {/* WhatsApp Direct Badge */}
-                      {lead.whatsappPhone && (
-                        <div>
-                          <a
-                            href={`https://wa.me/${lead.whatsappPhone.replace(/[^\d]/g, "")}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 hover:bg-emerald-500/20"
-                          >
-                            <span>WhatsApp: {lead.whatsappPhone}</span>
-                          </a>
+                      {/* All Phone Numbers */}
+                      {allPhones.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {allPhones.map((ph, idx) => (
+                            <div key={ph + idx}>
+                              <a
+                                href={`tel:${ph}`}
+                                className="inline-flex items-center gap-1 text-slate-300 hover:text-indigo-400 text-xs"
+                                title={idx === 0 ? "Primary phone" : "Extracted from business website"}
+                              >
+                                <Phone className="h-3 w-3 text-slate-500" />
+                                <span>{ph}</span>
+                                {idx > 0 && (
+                                  <span className="text-[9px] text-indigo-300 bg-indigo-950/60 border border-indigo-800/40 px-1 py-0.2 rounded">
+                                    Web
+                                  </span>
+                                )}
+                              </a>
+                            </div>
+                          ))}
                         </div>
-                      )}
+                      ) : null}
 
-                      {/* Primary Phone */}
-                      {lead.phone && (
-                        <div>
-                          <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-slate-300 hover:text-indigo-400">
-                            <Phone className="h-3 w-3 text-slate-500" />
-                            <span>{lead.phone}</span>
-                          </a>
+                      {/* Extracted Emails */}
+                      {allEmails.length > 0 ? (
+                        <div className="space-y-0.5 pt-0.5">
+                          {allEmails.map((em, idx) => (
+                            <div key={em + idx}>
+                              <a
+                                href={`mailto:${em}`}
+                                className="inline-flex items-center gap-1 text-sky-400 hover:underline text-[11px] truncate max-w-[150px]"
+                              >
+                                <Mail className="h-3 w-3 text-sky-500 shrink-0" />
+                                <span className="truncate">{em}</span>
+                              </a>
+                            </div>
+                          ))}
                         </div>
-                      )}
+                      ) : null}
 
-                      {/* Extracted Email */}
-                      {lead.email && (
-                        <div>
-                          <a href={`mailto:${lead.email}`} className="inline-flex items-center gap-1 text-sky-400 hover:underline text-[11px] truncate max-w-[150px]">
-                            <span>{lead.email}</span>
-                          </a>
-                        </div>
-                      )}
-
-                      {!lead.whatsappPhone && !lead.phone && !lead.email && (
+                      {allPhones.length === 0 && allEmails.length === 0 && (
                         <span className="text-slate-500 text-xs">No channels yet</span>
                       )}
                     </TableCell>

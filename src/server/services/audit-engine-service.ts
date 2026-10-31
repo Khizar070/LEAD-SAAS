@@ -475,23 +475,38 @@ export async function runWebsiteAudit(businessId: string): Promise<AuditEngineRe
   const opportunityLevel: OpportunityLevelType =
     cappedScore >= 70 ? "VERY_HIGH" : cappedScore >= 50 ? "HIGH" : cappedScore >= 30 ? "MEDIUM" : "LOW";
 
-  // Update Business Record with enriched details
+  // Combine all phones (existing business phone, existing phoneNumbers list, plus newly crawled phones)
+  let existingPhonesList: string[] = [];
+  if (business.phoneNumbers) {
+    try {
+      existingPhonesList = JSON.parse(business.phoneNumbers);
+    } catch {
+      // ignore
+    }
+  }
+  if (business.phone && !existingPhonesList.includes(business.phone)) {
+    existingPhonesList.push(business.phone);
+  }
+  const allPhonesCombined = Array.from(new Set([...existingPhonesList, ...(crawl.extractedPhones || [])])).filter(Boolean);
+  const phonesJson = allPhonesCombined.length > 0 ? JSON.stringify(allPhonesCombined) : undefined;
+  const primaryPhone = business.phone || allPhonesCombined[0];
+
   const emailDiscovered = crawl.extractedEmails && crawl.extractedEmails.length > 0 ? crawl.extractedEmails[0] : undefined;
   const emailsJson = crawl.extractedEmails && crawl.extractedEmails.length > 0 ? JSON.stringify(crawl.extractedEmails) : undefined;
-  const phoneDiscovered = crawl.extractedPhones && crawl.extractedPhones.length > 0 ? crawl.extractedPhones[0] : undefined;
-  const phonesJson = crawl.extractedPhones && crawl.extractedPhones.length > 0 ? JSON.stringify(crawl.extractedPhones) : undefined;
   const socialsJson = crawl.extractedSocials && crawl.extractedSocials.length > 0 ? JSON.stringify(crawl.extractedSocials) : undefined;
+
+  const detectedWhatsapp = crawl.whatsappPhone || (crawl.whatsappPhones && crawl.whatsappPhones.length > 0 ? crawl.whatsappPhones.join(", ") : undefined);
 
   await prisma.business.update({
     where: { id: business.id },
     data: {
       score: cappedScore,
       opportunityLevel,
-      ...(business.phone ? {} : (phoneDiscovered ? { phone: phoneDiscovered } : {})),
+      ...(primaryPhone ? { phone: primaryPhone } : {}),
       ...(phonesJson ? { phoneNumbers: phonesJson } : {}),
       ...(business.email ? {} : (emailDiscovered ? { email: emailDiscovered } : {})),
       ...(emailsJson ? { emails: emailsJson } : {}),
-      ...(crawl.whatsappPhone ? { whatsappPhone: crawl.whatsappPhone } : {}),
+      ...(detectedWhatsapp ? { whatsappPhone: detectedWhatsapp } : {}),
       ...(socialsJson ? { socialLinks: socialsJson } : {}),
       hasChatbot: crawl.hasChatbot ?? false,
       chatbotDetails: crawl.chatbotDetails,

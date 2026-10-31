@@ -11,6 +11,7 @@ export interface CrawlResult {
   responseTimeMs?: number;
   extractedPhones?: string[];
   whatsappPhone?: string;
+  whatsappPhones?: string[];
   extractedEmails?: string[];
   extractedSocials?: { type: string; url: string }[];
   hasMobileViewport?: boolean;
@@ -118,15 +119,15 @@ export async function crawlWebsite(targetUrl: string): Promise<CrawlResult> {
       let extractedPhones = extractPhonesFromHtml(html);
       let extractedEmails = extractEmailsFromHtml(html);
       const extractedSocials = extractSocialsFromHtml(html);
-      const whatsappPhone = extractWhatsappFromHtml(html);
+      let whatsappPhones = extractAllWhatsappFromHtml(html);
 
       // Tech & AI detection
       const chatbotCheck = detectChatbot(html);
       const bookingCheck = detectBookingSystem(html);
       const voiceCheck = detectVoiceAgent(html);
 
-      // If no emails found on homepage, attempt a quick fetch of /contact or /about
-      if (extractedEmails.length === 0) {
+      // If no WhatsApp, no emails, or only 1 phone found, attempt a quick fetch of /contact
+      if (whatsappPhones.length === 0 || extractedEmails.length === 0 || extractedPhones.length < 2) {
         try {
           const contactUrl = new URL("/contact", response.url).toString();
           const contactCtrl = new AbortController();
@@ -143,13 +144,26 @@ export async function crawlWebsite(targetUrl: string): Promise<CrawlResult> {
             const contactHtml = await contactRes.text();
             const moreEmails = extractEmailsFromHtml(contactHtml);
             const morePhones = extractPhonesFromHtml(contactHtml);
+            const moreWa = extractAllWhatsappFromHtml(contactHtml);
             extractedEmails = Array.from(new Set([...extractedEmails, ...moreEmails])).slice(0, 5);
-            extractedPhones = Array.from(new Set([...extractedPhones, ...morePhones])).slice(0, 5);
+            extractedPhones = Array.from(new Set([...extractedPhones, ...morePhones])).slice(0, 8);
+            whatsappPhones = Array.from(new Set([...whatsappPhones, ...moreWa])).slice(0, 5);
           }
         } catch {
           // ignore secondary contact page fetch failure
         }
       }
+
+      // If website explicitly mentions WhatsApp or has widget and extracted phones has a mobile number
+      if (whatsappPhones.length === 0 && (html.toLowerCase().includes("whatsapp") || html.includes("wa.me"))) {
+        for (const phone of extractedPhones) {
+          if (isMobileOrWhatsappCandidate(phone)) {
+            whatsappPhones.push(phone);
+          }
+        }
+      }
+
+      const whatsappPhone = whatsappPhones.length > 0 ? whatsappPhones.join(", ") : undefined;
 
       const hasMobileViewport = /<meta[^>]*name=["']viewport["']/i.test(html);
       const hasResponsiveDesign =
@@ -167,6 +181,7 @@ export async function crawlWebsite(targetUrl: string): Promise<CrawlResult> {
         responseTimeMs,
         extractedPhones,
         whatsappPhone,
+        whatsappPhones,
         extractedEmails,
         extractedSocials,
         hasMobileViewport,
@@ -194,41 +209,117 @@ export async function crawlWebsite(targetUrl: string): Promise<CrawlResult> {
   };
 }
 
-function extractWhatsappFromHtml(html: string): string | undefined {
-  // 1. wa.me link
-  const waMatch = html.match(/https?:\/\/(?:www\.)?wa\.me\/(?:\+?)([0-9]{7,15})/i);
-  if (waMatch && waMatch[1]) {
-    return cleanPhoneNumber(waMatch[1]);
-  }
+export function extractAllWhatsappFromHtml(html: string): string[] {
+  const whatsappNumbers = new Set<string>();
 
-  // 2. api.whatsapp.com link
-  const apiMatch = html.match(/https?:\/\/api\.whatsapp\.com\/send\?(?:[^"'>]*&)?phone=(?:\+?)([0-9]{7,15})/i);
-  if (apiMatch && apiMatch[1]) {
-    return cleanPhoneNumber(apiMatch[1]);
-  }
-
-  // 3. whatsapp:// protocol
-  const protocolMatch = html.match(/whatsapp:\/\/send\?(?:[^"'>]*&)?phone=(?:\+?)([0-9]{7,15})/i);
-  if (protocolMatch && protocolMatch[1]) {
-    return cleanPhoneNumber(protocolMatch[1]);
-  }
-
-  // 4. WhatsApp in anchor text with tel link
-  const whatsappAnchorMatch = html.match(/<a[^>]*href=["'](?:tel:|https?:\/\/[^"']*whatsapp[^"']*)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
-  if (whatsappAnchorMatch) {
-    const rawText = whatsappAnchorMatch[1].replace(/<[^>]+>/g, "").trim();
-    const phoneInText = rawText.match(/\+?[0-9\s-()]{8,20}/);
-    if (phoneInText) {
-      return cleanPhoneNumber(phoneInText[0]);
+  // 1. wa.me link: wa.me/447700900077 or wa.me/+447700900077
+  const waRegex = /https?:\/\/(?:www\.)?wa\.me\/(?:\+?)([0-9]{7,16})/gi;
+  let waMatch;
+  while ((waMatch = waRegex.exec(html)) !== null) {
+    if (waMatch[1]) {
+      const cleaned = cleanPhoneNumber(waMatch[1]);
+      if (isValidPhone(cleaned)) whatsappNumbers.add(cleaned);
     }
   }
 
-  return undefined;
+  // 2. api.whatsapp.com link
+  const apiRegex = /https?:\/\/api\.whatsapp\.com\/send\?(?:[^"'>]*&)?phone=(?:\+?)([0-9]{7,16})/gi;
+  let apiMatch;
+  while ((apiMatch = apiRegex.exec(html)) !== null) {
+    if (apiMatch[1]) {
+      const cleaned = cleanPhoneNumber(apiMatch[1]);
+      if (isValidPhone(cleaned)) whatsappNumbers.add(cleaned);
+    }
+  }
+
+  // 3. whatsapp:// protocol
+  const protocolRegex = /whatsapp:\/\/send\?(?:[^"'>]*&)?phone=(?:\+?)([0-9]{7,16})/gi;
+  let protocolMatch;
+  while ((protocolMatch = protocolRegex.exec(html)) !== null) {
+    if (protocolMatch[1]) {
+      const cleaned = cleanPhoneNumber(protocolMatch[1]);
+      if (isValidPhone(cleaned)) whatsappNumbers.add(cleaned);
+    }
+  }
+
+  // 4. Data attributes from WhatsApp widgets (Joinchat, WP WhatsApp, Elfsight, etc.)
+  const dataRegex = /(?:data-phone|data-whatsapp|data-number|data-wa|whatsapp-number|data-tel)=["']([+0-9\s-()]{7,20})["']/gi;
+  let dataMatch;
+  while ((dataMatch = dataRegex.exec(html)) !== null) {
+    const cleaned = cleanPhoneNumber(dataMatch[1]);
+    if (isValidPhone(cleaned)) whatsappNumbers.add(cleaned);
+  }
+
+  // 5. WhatsApp in anchor tag with tel: link or text
+  const waTagRegex = /<a[^>]+(?:class=["'][^"']*whatsapp[^"']*["']|href=["'][^"']*whatsapp[^"']*["']|aria-label=["'][^"']*whatsapp[^"']*["'])[^>]*>([\s\S]*?)<\/a>/gi;
+  let tagMatch;
+  while ((tagMatch = waTagRegex.exec(html)) !== null) {
+    const fullTag = tagMatch[0];
+    const text = tagMatch[1];
+    const telMatch = fullTag.match(/href=["']tel:([^"']+)["']/i);
+    if (telMatch) {
+      const cleaned = cleanPhoneNumber(telMatch[1]);
+      if (isValidPhone(cleaned)) whatsappNumbers.add(cleaned);
+    }
+    const phoneInText = text.replace(/<[^>]+>/g, "").match(/\+?[0-9\s-()]{8,20}/);
+    if (phoneInText) {
+      const cleaned = cleanPhoneNumber(phoneInText[0]);
+      if (isValidPhone(cleaned)) whatsappNumbers.add(cleaned);
+    }
+  }
+
+  // 6. Explicit text mentioning WhatsApp: "WhatsApp: +44..." or "WhatsApp: 07..."
+  const textWaRegex = /(?:whatsapp|chat on whatsapp|whatsapp us|whatsapp booking)[\s:-]+(?:\+?[0-9\s-()]{8,20})/gi;
+  const textMatches = html.match(textWaRegex) || [];
+  for (const tm of textMatches) {
+    const num = tm.match(/\+?[0-9\s-()]{8,20}/);
+    if (num) {
+      const cleaned = cleanPhoneNumber(num[0]);
+      if (isValidPhone(cleaned)) whatsappNumbers.add(cleaned);
+    }
+  }
+
+  return Array.from(whatsappNumbers);
 }
 
-function cleanPhoneNumber(phoneStr: string): string {
+export function isValidPhone(phone: string): boolean {
+  const digits = phone.replace(/[^\d]/g, "");
+  // Standard phone numbers must have 10 to 14 digits
+  if (digits.length < 10 || digits.length > 14) return false;
+  // Exclude repetitive or CSS patterns (e.g., 011171024, 00000)
+  if (/^0111|^0000|^1111|^9999/.test(digits)) return false;
+  // Exclude dates/years
+  if (/^(?:199\d|200\d|201\d|202\d|203\d)/.test(digits)) return false;
+  return true;
+}
+
+export function isMobileOrWhatsappCandidate(phone: string): boolean {
+  const digits = phone.replace(/[^\d]/g, "");
+  // UK mobile: starts with 447 or 07 (11 digits local or 12 digits with country code 44)
+  if (/^(?:447\d{9}|07\d{9})$/.test(digits)) return true;
+  // International mobile candidates (non-UK landline prefixes)
+  if (phone.startsWith("+") && !digits.startsWith("441") && !digits.startsWith("442") && !digits.startsWith("443") && !digits.startsWith("448")) {
+    return digits.length >= 10 && digits.length <= 13;
+  }
+  return false;
+}
+
+export function cleanPhoneNumber(phoneStr: string): string {
   let cleaned = phoneStr.trim().replace(/[^\d+]/g, "");
-  if (!cleaned.startsWith("+") && cleaned.length >= 10) {
+  // UK mobile starting with 07 and 11 digits: e.g. 07700 900077 -> +447700900077
+  if (/^07\d{9}$/.test(cleaned)) {
+    return `+44${cleaned.substring(1)}`;
+  }
+  // UK landline starting with 01/02/03/08: e.g. 020 3553 3869 -> +442035533869
+  if (/^0[1238]\d{8,10}$/.test(cleaned)) {
+    return `+44${cleaned.substring(1)}`;
+  }
+  // If starts with 00: e.g. 0044... -> +44...
+  if (cleaned.startsWith("00")) {
+    cleaned = `+${cleaned.substring(2)}`;
+  }
+  // If doesn't start with +, but has international digits
+  if (!cleaned.startsWith("+") && cleaned.length >= 10 && cleaned.length <= 14) {
     cleaned = `+${cleaned}`;
   }
   return cleaned;
@@ -306,8 +397,9 @@ function extractPhonesFromHtml(html: string): string[] {
   let match;
   while ((match = telRegex.exec(html)) !== null) {
     const raw = match[1].trim();
-    if (raw.length >= 7 && raw.length <= 25) {
-      phones.add(cleanPhoneNumber(raw));
+    const cleaned = cleanPhoneNumber(raw);
+    if (isValidPhone(cleaned)) {
+      phones.add(cleaned);
     }
   }
 
@@ -315,12 +407,9 @@ function extractPhonesFromHtml(html: string): string[] {
   const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/g;
   const matches = html.match(phoneRegex) || [];
   for (const m of matches) {
-    const cleaned = m.trim();
-    if (cleaned.length >= 8 && cleaned.length <= 20 && /\d/.test(cleaned)) {
-      // Avoid matching random CSS or date strings
-      if (!cleaned.startsWith("202") && !cleaned.startsWith("199")) {
-        phones.add(cleanPhoneNumber(cleaned));
-      }
+    const cleaned = cleanPhoneNumber(m.trim());
+    if (isValidPhone(cleaned)) {
+      phones.add(cleaned);
     }
   }
   return Array.from(phones).slice(0, 5);

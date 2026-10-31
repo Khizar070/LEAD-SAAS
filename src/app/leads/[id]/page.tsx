@@ -180,19 +180,20 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
           {/* Contact Details & Channels Strip */}
           <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
-              {/* WhatsApp direct action button */}
-              {lead.whatsappPhone && (
+              {/* WhatsApp direct action buttons */}
+              {lead.whatsappPhone?.split(",").map((s) => s.trim()).filter(Boolean).map((waNum, idx) => (
                 <a
-                  href={`https://wa.me/${lead.whatsappPhone.replace(/[^\d]/g, "")}`}
+                  key={waNum + idx}
+                  href={`https://wa.me/${waNum.replace(/[^\d]/g, "")}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-semibold transition-all shadow-sm shadow-emerald-500/10"
                 >
                   <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>WhatsApp: {lead.whatsappPhone}</span>
+                  <span>WhatsApp: {waNum}</span>
                   <ExternalLink className="h-3 w-3 ml-0.5 opacity-70" />
                 </a>
-              )}
+              ))}
 
               {/* Primary Phone */}
               {parsedPhones.map((ph, idx) => (

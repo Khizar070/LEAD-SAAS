@@ -6,9 +6,6 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import {
   GalleryVerticalEnd,
-  SquareTerminal,
-  Bot,
-  BookOpen,
   Settings2,
   ChevronsUpDown,
   ChevronRight,
@@ -55,8 +52,6 @@ export function Sidebar() {
   const { isCollapsed, isMobileOpen, setMobileOpen } = useSidebar();
 
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>(workspaces[0]);
-  const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(true);
-  const [activeSubItem, setActiveSubItem] = useState<string>("History");
 
   // Core apps routes
   const appRoutes = [
@@ -185,90 +180,11 @@ export function Sidebar() {
 
         {/* 2. MAIN NAVIGATION SECTION */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-4 scrollbar-none">
-          {/* Section: Platform */}
+          {/* Main Navigation */}
           <div>
             {!isCollapsed && (
               <div className="px-2.5 pb-1 text-xs font-medium text-neutral-400 tracking-normal select-none">
                 Platform
-              </div>
-            )}
-
-            <div className="space-y-1">
-              {/* Item: Playground (Collapsible with nested sub-items) */}
-              <div>
-                <SidebarItem
-                  icon={SquareTerminal}
-                  label="Playground"
-                  isCollapsed={isCollapsed}
-                  hasChildren
-                  isOpen={isPlaygroundOpen}
-                  onClick={() => setIsPlaygroundOpen(!isPlaygroundOpen)}
-                  isActive={pathname === "/playground" || pathname === "/"}
-                />
-
-                {/* Sub-items tree view (only when expanded) */}
-                {!isCollapsed && isPlaygroundOpen && (
-                  <div className="relative ml-4 pl-3.5 my-1 space-y-0.5 border-l border-neutral-700/60">
-                    {["History", "Starred", "Settings"].map((subItem) => {
-                      const isSubActive = activeSubItem === subItem;
-                      return (
-                        <button
-                          key={subItem}
-                          type="button"
-                          onClick={() => setActiveSubItem(subItem)}
-                          className={cn(
-                            "w-full text-left px-2.5 py-1.5 text-sm rounded-md transition-colors block cursor-pointer",
-                            isSubActive
-                              ? "text-white font-medium bg-neutral-800/40"
-                              : "text-neutral-400 hover:text-white hover:bg-neutral-800/30"
-                          )}
-                        >
-                          {subItem}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Item: Models */}
-              <SidebarItem
-                icon={Bot}
-                label="Models"
-                isCollapsed={isCollapsed}
-                hasChevron
-                onClick={() => {}}
-                isActive={pathname === "/models"}
-              />
-
-              {/* Item: Documentation */}
-              <SidebarItem
-                icon={BookOpen}
-                label="Documentation"
-                isCollapsed={isCollapsed}
-                hasChevron
-                onClick={() => {}}
-                isActive={pathname === "/documentation"}
-              />
-
-              {/* Item: Settings */}
-              <Link href="/settings" className="block">
-                <SidebarItem
-                  icon={Settings2}
-                  label="Settings"
-                  isCollapsed={isCollapsed}
-                  hasChevron
-                  isActive={pathname === "/settings"}
-                />
-              </Link>
-            </div>
-          </div>
-
-          {/* Section: App Features / Lead Intelligence */}
-          <div className="pt-2 border-t border-neutral-800/50">
-            {!isCollapsed && (
-              <div className="px-2.5 pb-1 text-xs font-medium text-neutral-400 tracking-normal select-none">
-                Applications
               </div>
             )}
 
@@ -278,7 +194,12 @@ export function Sidebar() {
                   pathname === item.href ||
                   (item.href !== "/" && pathname.startsWith(item.href));
                 return (
-                  <Link key={item.name} href={item.href} className="block">
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="block"
+                  >
                     <SidebarItem
                       icon={item.icon}
                       label={item.name}
@@ -288,6 +209,30 @@ export function Sidebar() {
                   </Link>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Section: Settings */}
+          <div className="pt-2 border-t border-neutral-800/50">
+            {!isCollapsed && (
+              <div className="px-2.5 pb-1 text-xs font-medium text-neutral-400 tracking-normal select-none">
+                Settings
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Link
+                href="/settings"
+                onClick={() => setMobileOpen(false)}
+                className="block"
+              >
+                <SidebarItem
+                  icon={Settings2}
+                  label="Settings"
+                  isCollapsed={isCollapsed}
+                  isActive={pathname === "/settings" || pathname.startsWith("/settings")}
+                />
+              </Link>
             </div>
           </div>
         </div>
